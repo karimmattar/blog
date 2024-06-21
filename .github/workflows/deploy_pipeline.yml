@@ -1,0 +1,115 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# Just Example workflow
+
+name: analysis_svc_workflow
+
+on:
+  push:
+    branches:
+      - "dev"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.vars.outputs.branch_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set output
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]
+          then
+            echo ::set-output name=branch_name::${{ github.event.pull_request.base.ref }}
+            echo ${{ github.event.pull_request.base.ref }}
+          else
+            echo ::set-output name=branch_name::${GITHUB_REF#refs/*/}
+            echo ${GITHUB_REF#refs/*/}
+            echo environment=${GITHUB_REF#refs/*/} >> $GITHUB_ENV
+          fi
+          echo "sha_short::${GITHUB_SHA::7}"
+          echo "::set-output name=sha_short::${GITHUB_SHA::7}"
+
+  build_and_push_to_ecr:
+    name: Build_and_Push_to_ECR
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment for ${{ needs.prepare.outputs.branch_name }}
+        run: |
+          echo "environment=${{ needs.prepare.outputs.branch_name }}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.environment }}-analysis-repo
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build \
+              -t $ECR_REPOSITORY:latest \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+              -t $ECR_REPOSITORY:$IMAGE_TAG \
+              -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "Pushed image $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  deploy_to_ecs:
+    name: Deploy_to_ECS
+    needs:
+      - prepare
+      - build_and_push_to_ecr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment for ${{ needs.prepare.outputs.branch_name }}
+        run: |
+          echo "environment=${{ needs.prepare.outputs.branch_name }}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: donaldpiret/ecs-deploy@master
+        with:
+          cluster: ${{ env.environment }}-be
+          target: ${{ env.environment }}-analysis
+          timeout: 600

@@ -1,0 +1,32 @@
+version: "3.4"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py migrate &&
+      python manage.py set_group_permissions &&
+      python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    ports:
+      - "80:8000"
+
+  db:
+    image: library/postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - app-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=plusone
+      - POSTGRES_PASSWORD=plusone
+      - POSTGRES_DB=plusone
+
+volumes:
+  app-db:
+    driver: local

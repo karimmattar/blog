@@ -1,0 +1,63 @@
+name: Pull_Request_Pipeline
+
+on:
+  pull_request:
+    branches:
+      - "**"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  Run_Tests:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run_Tests
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --no-root
+          python manage.py migrate
+          coverage run manage.py test
+          coverage report -m --fail-under=80
+
+  Linter:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Linter
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --no-root
+          pylint plusone user blog --rcfile=.pylintrc --fail-under=6
+
+  Formatter:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Formatter
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install --no-root
+          black . --check

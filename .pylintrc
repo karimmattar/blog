@@ -1,0 +1,6 @@
+[MASTER]
+persistent=yes
+ignore=settings.py, urls.py, migrations, apps.py
+
+[MESSAGES CONTROL]
+disable=R0903
