@@ -84,6 +84,13 @@ class Profile(TimeStamp):
     bio = models.TextField()
     profile_picture = models.ImageField(upload_to="profile_pictures")
 
+    def __str__(self):
+        """
+        __str__ method for profile
+        :return:
+        """
+        return self.user.email
+
 
 class Category(TimeStamp, Slug):
     """
@@ -101,6 +108,13 @@ class Category(TimeStamp, Slug):
 
         ordering = ("name",)
 
+    def __str__(self):
+        """
+        __str__ method for category
+        :return:
+        """
+        return self.slug
+
 
 class Tag(TimeStamp, Slug):
     """
@@ -117,6 +131,13 @@ class Tag(TimeStamp, Slug):
         """
 
         ordering = ("name",)
+
+    def __str__(self):
+        """
+        __str__ method for tag
+        :return:
+        """
+        return self.slug
 
 
 class Post(TimeStamp):
@@ -157,6 +178,13 @@ class Post(TimeStamp):
 
         ordering = ("-created_at",)
 
+    def __str__(self):
+        """
+        __str__ method for post
+        :return:
+        """
+        return self.content
+
 
 class Comment(TimeStamp):
     """
@@ -187,3 +215,10 @@ class Comment(TimeStamp):
         """
 
         ordering = ("-created_at",)
+
+    def __str__(self):
+        """
+        __str__ method for comment
+        :return:
+        """
+        return self.content
